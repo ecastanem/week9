@@ -16,16 +16,24 @@ after { puts; }                                                                 
 
 events_table = DB.from(:events)
 rsvps_table = DB.from(:rsvps)
-# users_table = DB.from(:users)
+users_table = DB.from(:users)
+
+before do
+    @current_user = users_table.where(:id => session[:user_id]).to_a[0]
+    puts @current_user.inspect
+end
 
 # Home page (all events)
 get "/" do
+ 
     @events = events_table.all
     view "events"
 end
 
 # Show a single event
 get "/events/:id" do
+    @users_table = users_table
+
     # SELECT * FROM events WHERE id=:id
     @event = events_table.where(:id => params["id"]).to_a[0]
     # SELECT * FROM rsvps WHERE event_id=:id
@@ -36,42 +44,55 @@ get "/events/:id" do
 end
 
 # Form to create a new RSVP
-get "/events/:id/rsvps/new" do
+post "/events/:id/rsvps/new" do
     @event = events_table.where(:id => params["id"]).to_a[0]
     view "new_rsvp"
 end
 
 # Receiving end of new RSVP form
-get "/events/:id/rsvps/create" do
+post "/events/:id/rsvps/create" do
     rsvps_table.insert(:event_id => params["id"],
                        :going => params["going"],
-                       :name => params["name"],
-                       :email => params["email"],
+                       :user_id => @current_user[:id],
                        :comments => params["comments"])
     @event = events_table.where(:id => params["id"]).to_a[0]
     view "create_rsvp"
 end
 
 # Form to create a new user
-get "/users/new" do
+post "/users/new" do
     view "new_user"
 end
 
 # Receiving end of new user form
-get "/users/create" do
-    puts params
+post "/users/create" do
+    users_table.insert(:name => params["name"],
+                        :email => params["email"],
+                        :password => params["password"])
     view "create_user"
 end
 
 # Form to login
-get "/logins/new" do
+post "/logins/new" do
     view "new_login"
 end
 
 # Receiving end of login form
-get "/logins/create" do
+post "/logins/create" do
     puts params
-    view "create_login"
+    email = params[:email]
+    pwd = params[:password]
+    user = users_table.where(:email => email).to_a[0]
+    if user 
+        if user[:password] == pwd
+            session[:user_id] = user[:id]
+            view "create_login"
+        else
+            view "create_login_failed"
+        end
+    else
+        view "create_login_failed"
+    end
 end
 
 # Logout
